@@ -1,12 +1,5 @@
 local M = {}
 local ns = vim.api.nvim_create_namespace("timer")
--- local group = vim.api.nvim_create_augroup("RopeTimer", { clear = true })
--- vim.api.nvim_create_autocmd("InsertCharPre", {
--- 	group = group,
--- 	callback = function()
--- 		vim.schedule()
--- 	end,
--- })
 
 function M.setup()
 	M.user_commands()
@@ -41,13 +34,24 @@ end
 
 local function start_timer()
 	local duration_ms = 30000
-	local inactivity_timer_ms_total = 60000
+	local inactivity_timer_ms = 10000
 
 	local remaining_ms = duration_ms
-	local inactivity_timer_ms = inactivity_timer_ms_total
-
+	local inactivity_remaining = inactivity_timer_ms
 	local tick_ms = 50
 	local buf, win = nil, nil
+
+	local group = vim.api.nvim_create_augroup("RopeTimerInactivity", { clear = true })
+	vim.api.nvim_create_autocmd("TextChangedI", {
+		group = group,
+		callback = function()
+			inactivity_remaining = inactivity_timer_ms
+			if win and vim.api.nvim_win_is_valid(win) then
+				vim.api.nvim_win_close(win, true)
+			end
+			win, buf = nil, nil
+		end,
+	})
 
 	local timer = vim.uv.new_timer()
 	if not timer then
@@ -57,8 +61,8 @@ local function start_timer()
 		0,
 		tick_ms,
 		vim.schedule_wrap(function()
-			if inactivity_timer_ms > 0 then
-				inactivity_timer_ms = inactivity_timer_ms - tick_ms
+			if inactivity_remaining > 0 then
+				inactivity_remaining = inactivity_remaining - tick_ms
 				return
 			end
 
@@ -72,6 +76,7 @@ local function start_timer()
 				if win and vim.api.nvim_win_is_valid(win) then
 					vim.api.nvim_win_close(win, true)
 				end
+				win, buf = nil, nil
 				-- vim.on_key(nil, ns)
 				timer:stop()
 				timer:close()
